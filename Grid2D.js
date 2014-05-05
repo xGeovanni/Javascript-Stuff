@@ -1,25 +1,61 @@
 // Class assumes access to GameMaths.js and 2D Shapes.js
 
-function Grid(topleft, size, tileSize, screenTopleft, screenBottomRight, defaultTile, tileTypeToColour){
+function Grid(topleft, size, tileSize, canvas, defaultTile, intToTileRender){
 	
-	this.topleft = topleft;
+	this.topleft = new Vector2(topleft[0], topleft[1]);
 	this.size = size;
 	this.tileSize = tileSize;
+	this.pxSize = [this.size[0] * this.tileSize[0], this.size[1] * this.tileSize[1]];
 	
-	this.tileTypeToColour = tileTypeToColour;
+	this.canvas = canvas;
 	
-	this.screenTopleft = screenTopleft ? screenTopleft : [0, 0];
-	this.screenBottomRight = screenBottomRight ? screenBottomRight : [this.size[0] * this.tileSize[0], this.size[1] * this.tileSize[1]];
+	this.intToTileRender = intToTileRender;
 	
-	defaultTile = defaultTile ? defaultTile : 0;
+	this.screenBottomRight = [canvas.width, canvas.height];
+	
+	this.defaultTile = defaultTile ? defaultTile : 0;
 	
 	this.tileTypes = [];
 	
 	for (var i=0; i < this.size[0]; i++){
 		this.tileTypes.push([]);
-		
+			
 		for(var j=0; j < this.size[1]; j++){
-			this.tileTypes[i].push(defaultTile);
+			this.tileTypes[i][j] = this.defaultTile;
+		}
+	}
+	
+	this.fillDefault = function(tile){
+		tile = tile === undefined ? this.defaultTile : tile;
+		
+		for (var i=0; i < this.size[0]; i++){
+			for(var j=0; j < this.size[1]; j++){
+				this.tileTypes[i][j] = tile;
+			}
+		}
+	};
+	
+	this.tileContext = function(type, type2, surroundingToNewTile){
+		var sTiles;
+		var sTileOfType = "";
+		
+		for (var i=0; i < this.size[0]; i++){
+			for(var j=0; j < this.size[1]; j++){
+				if (this.tileTypes[i][j] !== type){
+					continue;
+				}
+				
+				sTiles = this.surroundingTiles([i, j], true, false);
+				sTileOfType = "";
+				
+				for (var k=0; k < sTiles.length; k++){
+					sTileOfType += Number(this.tileTypes[sTiles[k][0]][sTiles[k][1]] === type2);
+				}
+				
+				if (sTileOfType in surroundingToNewTile){
+					this.tileTypes[i][j] = surroundingToNewTile[sTileOfType];
+				}
+			}
 		}
 	}
 	
@@ -31,6 +67,27 @@ function Grid(topleft, size, tileSize, screenTopleft, screenBottomRight, default
 		this.topleft[0] += x;
 		this.topleft[1] += y;
 	};
+	
+	this.pxToTileCoords = function(point){
+		point[0] -= this.topleft[0];
+		point[1] -= this.topleft[1];
+		
+		var tile = [];
+		
+		tile[0] = Math.floor(point[0] / this.tileSize[0]);
+		tile[1] = Math.floor(point[1] / this.tileSize[1]);
+		
+		return tile;
+	}
+	
+	this.tileToPxCoords = function(tile){
+		var point = [tile[0] * this.tileSize[0], tile[1] * this.tileSize[1]];
+		
+		point[0] += this.topleft[0];
+		point[1] += this.topleft[1];
+		
+		return point;
+	}
 	
 	this.draw = function(ctx, colour, width){
 		ctx.strokeStyle = colour ? colour : "#000000";
@@ -62,14 +119,57 @@ function Grid(topleft, size, tileSize, screenTopleft, screenBottomRight, default
 		ctx.stroke();
 	};
 	
-	this.fillTiles = function(ctx, ignoreZero){
+	this.surroundingTiles = function(tile, adjacent, diagonal){
+		adjacent = adjacent === undefined ? true : adjacent;
+		diagonal = diagonal === undefined ? true : diagonal;
+		
+		var tiles = [];
+		
+		if (tile[0] < 0 || tile[0] > this.size[0] || tile[1] < 0 || tile[1] > this.size[1]){
+			throw "Invalid tile co-ordiantes:" + tile;
+		}
+		
+		if (adjacent){
+			if (tile[0] > 0){
+				tiles.push([tile[0] - 1, tile[1]]);
+			}
+			if (tile[0] < this.size[0] - 1){
+				tiles.push([tile[0] + 1, tile[1]]);
+			}
+			if (tile[1] > 0){
+				tiles.push([tile[0], tile[1] - 1]);
+			}
+			if (tile[1] < this.size[1] - 1){
+				tiles.push([tile[0], tile[1] + 1]);
+			}
+		}
+		
+		if (diagonal){
+			if (tile[0] > 0 && tile[1] > 0){
+				tiles.push([tile[0] - 1, tile[1] - 1]);
+			}
+			if (tile[0] < this.size[0] - 1 && tile[1] < this.size[1] - 1){
+				tiles.push([tile[0] + 1, tile[1] + 1]);
+			}
+			if (tile[0] < this.size[0] - 1 && tile[1] > 0){
+				tiles.push([tile[0] + 1, tile[1] - 1]);
+			}
+			if (tile[0] > 0 && tile[1] - 1 < this.size[1]){
+				tiles.push([tile[0] - 1, tile[1] + 1]);
+			}
+		}
+		
+		return tiles;
+	}
+	
+	this.fillTiles = function(ctx){
 		
 		if (this.tileTypeToColour === undefined){
 			throw "Grid2D Error: An object is required which maps tile type to a certain colour.";
 		}
 		
-		var start_i = Math.floor((this.screenTopleft[0] - this.topleft[0]) / this.tileSize[0]);
-		var start_j = Math.floor((this.screenTopleft[1] - this.topleft[1]) / this.tileSize[1]);
+		var start_i = Math.floor(-this.topleft[0] / this.tileSize[0]);
+		var start_j = Math.floor(-this.topleft[1] / this.tileSize[1]);
 		
 		if (start_i >= this.size[0] || start_j >= this.size[1]){
 			return;
@@ -99,23 +199,24 @@ function Grid(topleft, size, tileSize, screenTopleft, screenBottomRight, default
 				
 				var type = this.tileTypes[i][j];
 				
-				if (ignoreZero && type === 0){
+				if (type === -1){
 					continue;
 				}
 				
 				var x = this.topleft[0] + i * this.tileSize[0];
 				var y = this.topleft[1] + j * this.tileSize[1];
 				
-				var colour = this.tileTypeToColour[type];
+				var render = this.intToTileRender[type];
 				
-				if (typeof colour === "string"){
+				if (typeof render === "string"){
 					ctx.fillStyle = colour;	
-					ctx.fillRect(x, y, this.tileSize[0], this.tileSize[1], 2);
+					ctx.fillRect(x, y, this.tileSize[0] + 1, this.tileSize[1] + 1);
+				}
+				else if (){
+					if (render instanceof Animator || render instanceof Animation){
+					}
 				}
 				else{
-					colour.style.width = this.tileSize[0] + "px";
-					colour.style.height = this.tileSize[1] + "px";
-					
 					ctx.drawImage(colour, x, y);
 				}
 			}
