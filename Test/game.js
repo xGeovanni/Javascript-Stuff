@@ -1,15 +1,14 @@
 /*
  * 
  */
- 
+
 "use strict";
  
 canvas.oncontextmenu = function(e){ e.preventDefault(); return false; };
 
 var Game = {
 	
-	started : false,
-	
+	started : true,
 	
 	intro : function(){
 		
@@ -17,6 +16,11 @@ var Game = {
 	
 	init : function(){
 		this.intro();
+		
+		this.desert = document.getElementById("desert");
+		this.lighthouse = document.getElementById("lighthouse");
+		
+		this.frames = makeTweenedFrames(this.desert, this.lighthouse, 10);
 	},
 	
 	update : function(){
@@ -36,6 +40,8 @@ var Game = {
 			this.intro();
 			return;
 		}
+		
+		ctx.drawImage(this.frames[Math.floor(timeElapsed % 10)], 0, 0);
 	},
 }
 
